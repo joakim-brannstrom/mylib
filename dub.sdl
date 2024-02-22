@@ -1,4 +1,4 @@
-name "my"
+name "mylib"
 description "A library collection of algorithms and data structures for personal use"
 authors "Joakim Brännström"
 copyright "Copyright © 2019, Joakim Brännström"
