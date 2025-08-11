@@ -184,35 +184,39 @@ void logAndDropHandler(scope ref Actor self, ref Variant msg) @trusted nothrow {
 }
 
 void defaultErrorHandler(scope ref Actor self, scope ErrorMsg msg) @safe nothrow {
-    self.lastError = msg.reason;
+    debug {
+        logger.tracef("%X [%s] source %s shutdown: error: %s (source %s)",
+                self.id, self.name, msg.source.toHash, msg.reason).collectException;
+    }
+    self.errorReason = msg.reason;
     self.shutdown;
 }
 
 void defaultExitHandler(scope ref Actor self, scope ExitMsg msg) @safe nothrow {
-    self.lastError = msg.reason;
+    debug {
+        logger.tracef("%X [%s] source %s shutdown: exit: %s", self.id,
+                self.name, msg.source.toHash, msg.reason).collectException;
+    }
+    self.errorReason = msg.reason;
     self.forceShutdown;
 }
 
 void defaultExceptionHandler(scope ref Actor self, scope Exception e) @safe nothrow {
-    self.lastError = SystemError.runtimeError;
-    // TODO: should log?
+    debug {
+        logger.tracef("%X [%s] shutdown: exception: %s", self.id, self.name,
+                e.msg).collectException;
+    }
+    self.errorReason = SystemError.runtimeError;
     self.forceShutdown;
 }
 
 // Write the name of the actor and the exception to stdout.
 void logExceptionHandler(scope ref Actor self, scope Exception e) @safe nothrow {
-    import std.stdio : writeln;
-
-    self.lastError = SystemError.runtimeError;
-
+    self.errorReason = SystemError.runtimeError;
     try {
-        const name = self.name.idup;
-        writeln("EXCEPTION thrown by actor ", name);
-        writeln(e.msg);
-        writeln("TERMINATING");
+        logger.info("[%s] shutdown: exception: %s: ", self.name, e.msg);
     } catch (Exception e) {
     }
-
     self.forceShutdown;
 }
 
