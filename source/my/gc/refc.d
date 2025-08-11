@@ -121,6 +121,8 @@ struct RefCounted(T) {
         impl = null;
     }
 
+    alias get this;
+
     /// Set impl to an allocated block of data. It is uninitialized.
     private static Impl* alloc() @trusted {
         // need to use untyped memory, so we don't get a dtor call by the GC.
@@ -196,7 +198,7 @@ struct RefCounted(T) {
     }
 
     WeakRef!T weakRef() {
-        return WeakRef!T(this);
+        return WeakRef!T(impl);
     }
 }
 
@@ -250,20 +252,11 @@ struct WeakRef(T) {
     alias Impl = ControlBlock!T;
     private Impl* impl;
 
-    this(RefCounted!(T) r) {
-        if (r.empty)
-            return;
-
-        incrWeakCnt(r.impl);
-        impl = r.impl;
-    }
-
-    this(ref RefCounted!(T) r) {
-        if (r.empty)
-            return;
-
-        incrWeakCnt(r.impl);
-        impl = r.impl;
+    private this(Impl* impl) {
+        if (impl) {
+            this.impl = impl;
+            incrWeakCnt(this.impl);
+        }
     }
 
     this(this) {
@@ -283,19 +276,6 @@ struct WeakRef(T) {
 
     void opAssign(WeakRef other) @safe nothrow {
         swap(impl, other.impl);
-    }
-
-    RefCounted!(T) asRefCounted() nothrow {
-        if (impl is null) {
-            return typeof(return).init;
-        }
-
-        auto useCnt = atomicLoad(impl.useCnt);
-        if (useCnt == 0)
-            return typeof(return).init;
-
-        cas(&impl.useCnt, useCnt, useCnt + 1);
-        return typeof(return)(impl);
     }
 
     /// Release the reference.
@@ -318,6 +298,23 @@ struct WeakRef(T) {
     T opCast(T : bool)() @safe pure nothrow const @nogc {
         return !empty;
     }
+}
+
+RefCounted!(T) asRefCounted(T)(ref WeakRef!T weak) nothrow {
+    if (weak.impl is null) {
+        return typeof(return).init;
+    }
+
+    auto useCnt = atomicLoad(weak.impl.useCnt);
+    if (useCnt == 0)
+        return typeof(return).init;
+
+    // useCnt can change but it will never go to zero because *this*
+    // RefCounted keep it >0.
+    while (!cas(&weak.impl.useCnt, useCnt, useCnt + 1)) {
+        useCnt = atomicLoad(weak.impl.useCnt);
+    }
+    return typeof(return)(weak.impl);
 }
 
 @("shall only call the destructor one time")
@@ -354,7 +351,7 @@ struct WeakRef(T) {
     size_t dtorcalled = 0;
     struct S {
         int x;
-        WeakRef!(typeof(this)) other;
+        WeakRef!S other;
 
         @safe ~this() {
             if (x)
@@ -368,8 +365,8 @@ struct WeakRef(T) {
         auto rc1 = S(1).refCounted;
         auto rc2 = S(2).refCounted;
 
-        rc1.get.other = rc2.weakRef;
-        rc2.get.other = rc1.weakRef;
+        rc1.other = rc2.weakRef;
+        rc2.other = rc1.weakRef;
 
         assert(rc1.impl.useCnt == 1);
         assert(rc1.impl.weakCnt == 2);
@@ -448,7 +445,7 @@ struct WeakRef(T) {
 }
 
 /**
-Borrows the payload of $(LREF SafeRefCounted) for use in `fun`. Inferred as `@safe`
+Borrows the payload of $(LREF RefCounted) for use in `fun`. Inferred as `@safe`
 if `fun` is `@safe` and does not escape a reference to the payload.
 The reference count will be incremented for the duration of the operation,
 so destroying the last reference will not leave dangling references in
