@@ -27,6 +27,9 @@ import my.actor.mailbox;
 import my.actor.msg;
 import my.actor.system : System;
 import my.actor.typed : isTypedAddress, isTypedActorImpl;
+import my.gc.refc;
+
+public import my.actor.system_msg;
 
 private struct PromiseData {
     WeakAddress replyTo;
@@ -43,8 +46,29 @@ private struct PromiseData {
 
 // deliver can only be called one time.
 struct Promise(T) {
-    package {
-        SafeRefCounted!(PromiseData, RefCountedAutoInitialize.no) data;
+    private RefCounted!PromiseData data;
+
+    private this(PromiseData data) {
+        this.data = refCounted(data);
+    }
+
+    private this(RefCounted!PromiseData data) {
+        this.data = data;
+    }
+
+    package void set(WeakAddress replyTo, ulong replyId)
+    in (!data.empty, "promise must be initialized") {
+        data.borrow!((ref a) { a.replyTo = replyTo; a.replyId = replyId; });
+    }
+
+    package WeakAddress replyTo() @safe
+    in (!data.empty, "promise must be initialized") {
+        return data.replyTo;
+    }
+
+    package ulong replyId() @safe
+    in (!data.empty, "promise must be initialized") {
+        return data.replyId;
     }
 
     void deliver(T reply) {
@@ -57,19 +81,19 @@ struct Promise(T) {
      * A promise can only be delivered once.
      */
     void deliver(ref T reply) @trusted
-    in (data.refCountedStore.isInitialized, "promise must be initialized") {
-        if (!data.refCountedStore.isInitialized)
+    in (!data.empty, "promise must be initialized") {
+        if (data.empty)
             return;
         scope (exit)
-            data = typeof(data).init;
+            data.release;
 
         // TODO: should probably call delivering actor with an ErrorMsg if replyTo is closed.
         if (auto replyTo = data.replyTo.lock.get) {
             enum wrapInTuple = !is(T : Tuple!U, U);
             static if (wrapInTuple)
-                replyTo.put(Reply(data.borrow!((ref a) => a.replyId), Variant(tuple(reply))));
+                replyTo.put(Reply(data.replyId, Variant(tuple(reply))));
             else
-                replyTo.put(Reply(data.borrow!((ref a) => a.replyId), Variant(reply)));
+                replyTo.put(Reply(data.replyId, Variant(reply)));
         }
     }
 
@@ -77,19 +101,21 @@ struct Promise(T) {
         data = rhs.data;
     }
 
-    /// True if the promise is not initialized.
+    /// True if the promise is not initialized and thus unusalbe.
     bool empty() {
-        return !data.refCountedStore.isInitialized || data.borrow!((ref a) => a.replyId) == 0;
+        debug logger.infof("Promise!(%s)(empty or replyId: %s)", T.stringof,
+                data.empty ? -1 : data.replyId);
+        return data.empty || data.replyId == 0;
     }
 
     /// Clear the promise.
     void clear() {
-        data = typeof(data).init;
+        data.release;
     }
 }
 
 auto makePromise(T)() {
-    return Promise!T(safeRefCounted(PromiseData.init));
+    return Promise!T(PromiseData.init);
 }
 
 struct RequestResult(T) {
