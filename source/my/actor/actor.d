@@ -558,6 +558,16 @@ package:
 
         assert(state_ == ActorState.stopped || addr, "no address");
 
+        debug {
+            if (state_ != lastState_) {
+                lastState_ = state_;
+                logger.tracef("%X [%s] %s", id, name, state_).collectException;
+            }
+        }
+        if (state_ != ActorState.stopped && addr.get.hasMessage) {
+            debug logger.tracef("mailbox length %s", addr.get.length).collectException;
+        }
+
         final switch (state_) {
         case ActorState.waiting:
             state_ = ActorState.active;
@@ -715,15 +725,15 @@ package:
      *    the actor system is out of scope.
      */
     void processSystemMsg() @safe scope {
-        //() @trusted {
-        //logger.infof("run %X", cast(void*) &this);
-        //}();
         while (!addr.get.empty!SystemMsg) {
             messages_++;
-            //logger.infof("%X %s %s", addr.toHash, state_, messages_);
             auto front = addr.get.pop!SystemMsg;
             scope (exit)
                 .destroy(front);
+
+            debug {
+                logger.tracef("%X [%s] system: %s", id, name, front.get).collectException;
+            }
 
             front.get.match!((ref DownMsg a) {
                 if (downHandler_)
@@ -946,10 +956,15 @@ private void cleanupCtx(CtxT)(void* ctx)
                 // TODO: add a -version actor_ctx_diagnostic that prints when it is unable to deinit?
 
                 static if (is(UT == T)) {
+                    pragma(msg, "cleanupCtx destroy: ", T);
                     .destroy((*userCtx)[i]);
+                } else {
+                    pragma(msg, "error cleanupCtx: ", UT);
+                    pragma(msg, "error cleanupCtx: ", T);
                 }
             }
         }
+        logger.info("Cleanup called for ", CtxT.stringof);
     }
 }
 
@@ -1005,6 +1020,8 @@ package auto makeAction2(T, CtxT = void)(T handler) @safe
     }
 
     alias HArgs = staticMap!(Unqual, Params);
+    pragma(msg, "makeAction2 context: ", CtxT);
+    pragma(msg, "makeAction2 params: ", Params);
 
     void fn(void* ctx, ref Variant msg) @trusted {
         static if (is(CtxT == void)) {
@@ -1029,6 +1046,8 @@ package Closure!(ReplyHandler, void*) makeReply2(T, CtxT = void)(T handler) @saf
     }
 
     alias HArgs = staticMap!(Unqual, Params);
+    pragma(msg, "makeReply2 context: ", CtxT);
+    pragma(msg, "makeReply2 params: ", HArgs);
 
     void fn(void* ctx, ref Variant msg) @trusted {
         static if (is(CtxT == void)) {
@@ -1169,6 +1188,9 @@ package auto makeRequest2(T, CtxT = void)(T handler) @safe {
     }
 
     alias HArgs = staticMap!(Unqual, Params);
+    pragma(msg, "makeRequest2 context: ", CtxT);
+    pragma(msg, "makeRequest2 params: ", HArgs);
+    logger.tracef("%s makeRequest2 signature: %s", HArgs.stringof, makeSignature!HArgs);
 
     void fn(void* rawCtx, ref Variant msg, ulong replyId, WeakAddress replyTo) @trusted {
         static if (is(CtxT == void)) {

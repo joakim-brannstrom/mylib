@@ -178,6 +178,9 @@ enum ExitReason : ubyte {
 ulong makeSignature(Types...)() @safe {
     import std.traits : Unqual;
 
+    pragma(msg, "makeSignature ", Types);
+    logger.info("hello ", Types.stringof);
+
     ulong rval;
     static foreach (T; Types) {
         rval += typeid(Unqual!T).toHash;
