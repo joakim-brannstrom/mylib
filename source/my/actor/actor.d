@@ -298,14 +298,14 @@ struct Actor {
         DefaultHandler defaultHandler_;
     }
 
-    // invariant () {
-    //     if (addr && !state_.among(ActorState.waiting, ActorState.shutdown)) {
-    //         assert(errorHandler_);
-    //         assert(exitHandler_);
-    //         assert(exceptionHandler_);
-    //         assert(defaultHandler_);
-    //     }
-    // }
+    invariant () {
+        if (addr && !state_.among(ActorState.waiting, ActorState.shutdown)) {
+            assert(errorHandler_);
+            assert(exitHandler_);
+            assert(exceptionHandler_);
+            assert(defaultHandler_);
+        }
+    }
 
     this(StrongAddress a) @trusted
     in (!a.empty, "address is empty") {
