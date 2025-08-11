@@ -777,21 +777,24 @@ package:
         messages_++;
 
         auto front = addr.get.pop!Reply;
+        const id = front.get.id;
         scope (exit)
             .destroy(front);
-        logger.trace("reply signature: ", front.get.id);
+        logger.trace("reply signature: ", id);
         logger.trace("awaiting responses", awaitedResponses);
 
-        if (auto v = front.get.id in awaitedResponses) {
-            logger.tracef("using awaiting response %s %s", v, front.get.id);
-            // TODO: reduce the lookups on front.id
+        if (auto v = id in awaitedResponses) {
+            logger.tracef("using awaiting response %s %s", v, id);
+            scope (exit)
+                () {
+                awaitedResponses.remove(id);
+                removeReplyTimeout(id);
+                try {
+                    () @trusted { v.behavior.free; }();
+                } catch (Exception e) {
+                }
+            }();
             v.behavior(front.get.data);
-            awaitedResponses.remove(front.get.id);
-            removeReplyTimeout(front.get.id);
-            try {
-                () @trusted { v.behavior.free; }();
-            } catch (Exception e) {
-            }
         } else {
             // TODO: should probably be SystemError.unexpectedResponse?
             defaultHandler_(this, front.get.data);
