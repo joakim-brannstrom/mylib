@@ -936,6 +936,7 @@ private void cleanupCtx(CtxT)(void* ctx)
         if (is(CtxT == Tuple!T, T) || is(CtxT == void)) {
     import std.traits;
     import my.actor.typed;
+    import core.memory : GC;
 
     static if (!is(CtxT == void)) {
         // trust that any use of this also pass on the correct context type.
@@ -954,27 +955,23 @@ private void cleanupCtx(CtxT)(void* ctx)
                             "WeakAddress must NEVER be const or immutable: " ~ T.stringof);
                 }
                 // TODO: add a -version actor_ctx_diagnostic that prints when it is unable to deinit?
-
-                static if (is(UT == T)) {
-                    pragma(msg, "cleanupCtx destroy: ", T);
-                    .destroy((*userCtx)[i]);
-                } else {
-                    pragma(msg, "error cleanupCtx: ", UT);
-                    pragma(msg, "error cleanupCtx: ", T);
-                }
             }
         }
-        logger.info("Cleanup called for ", CtxT.stringof);
+        pragma(msg, "cleanupCtx destroy: ", CtxT);
+        if (!GC.inFinalizer) {
+            .destroy(*userCtx);
+        }
+        debug logger.tracef("cleanupCtx!(%s) called", CtxT.stringof);
     }
 }
 
-@("shall default initialize when possible, skipping const/immutable")
+@("shall cleanup all tuples values")
 unittest {
     {
         auto x = tuple(cast(const) 42, 43);
         alias T = typeof(x);
         cleanupCtx!T(cast(void*)&x);
-        assert(x[0] == 42); // can't assign to const
+        assert(x[0] == 0);
         assert(x[1] == 0);
     }
 
@@ -985,7 +982,7 @@ unittest {
         alias T = typeof(x);
         cleanupCtx!T(cast(void*)&x);
         assert(x[0] == Path.init);
-        assert(x[1] == Path("foo"));
+        assert(x[1] == Path.init);
     }
 }
 
