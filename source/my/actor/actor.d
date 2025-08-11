@@ -102,8 +102,10 @@ struct Promise(T) {
 
     /// True if the promise is not initialized and thus unusalbe.
     bool empty() {
-        debug logger.infof("Promise!(%s)(empty or replyId: %s)", T.stringof,
-                data.empty ? -1 : data.replyId);
+        version (mylib_actor_trace) {
+            logger.infof("Promise!(%s)(empty or replyId: %s)", T.stringof,
+                    data.empty ? -1 : data.replyId);
+        }
         return data.empty || data.replyId == 0;
     }
 
@@ -183,27 +185,35 @@ void logAndDropHandler(scope ref Actor self, ref Variant msg) @trusted nothrow {
 }
 
 void defaultErrorHandler(scope ref Actor self, scope ErrorMsg msg) @safe nothrow {
-    debug {
-        logger.tracef("%X [%s] source %s shutdown: error: %s (source %s)",
-                self.id, self.name, msg.source.toHash, msg.reason).collectException;
+    version (mylib_actor_trace) {
+        try {
+            logger.tracef("%X [%s] source %s shutdown: error: %s (source %s)",
+                    self.id, self.name, msg.source.toHash, msg.reason);
+        } catch (Exception e) {
+        }
     }
     self.errorReason = msg.reason;
     self.shutdown;
 }
 
 void defaultExitHandler(scope ref Actor self, scope ExitMsg msg) @safe nothrow {
-    debug {
-        logger.tracef("%X [%s] source %s shutdown: exit: %s", self.id,
-                self.name, msg.source.toHash, msg.reason).collectException;
+    version (mylib_actor_trace) {
+        try {
+            logger.tracef("%X [%s] source %s shutdown: exit: %s", self.id,
+                    self.name, msg.source.toHash, msg.reason);
+        } catch (Exception e) {
+        }
     }
     self.errorReason = msg.reason;
     self.forceShutdown;
 }
 
 void defaultExceptionHandler(scope ref Actor self, scope Exception e) @safe nothrow {
-    debug {
-        logger.tracef("%X [%s] shutdown: exception: %s", self.id, self.name,
-                e.msg).collectException;
+    version (mylib_actor_trace) {
+        try {
+            logger.tracef("%X [%s] shutdown: exception: %s", self.id, self.name, e.msg);
+        } catch (Exception e) {
+        }
     }
     self.errorReason = SystemError.runtimeError;
     self.forceShutdown;
@@ -243,13 +253,18 @@ package enum ActorState {
 private struct AwaitReponse {
     Closure!(ReplyHandler, void*) behavior;
     ErrorHandler onError;
+    string name;
+
+    string toString() @safe pure nothrow const @nogc {
+        return name;
+    }
 }
 
 private struct Behavior2(HandlerT) {
     Closure2!HandlerT behavior;
     string name;
 
-    string toString() @safe const {
+    string toString() @safe pure nothrow const @nogc {
         return name;
     }
 }
@@ -371,7 +386,7 @@ struct Actor {
             state_ = ActorState.forceShutdown;
     }
 
-    ulong id() @safe pure nothrow const @nogc {
+    ulong id() @safe pure nothrow const @nogc scope {
         return addr.id;
     }
 
@@ -558,14 +573,16 @@ package:
 
         assert(state_ == ActorState.stopped || addr, "no address");
 
-        debug {
+        version (mylib_actor_trace) {
             if (state_ != lastState_) {
                 lastState_ = state_;
-                logger.tracef("%X [%s] %s", id, name, state_).collectException;
+                try {
+                    logger.tracef("actor:%X [%s] state:%s mailbox:%s", id, name, state_,
+                            (state_ != ActorState.stopped && addr.get.hasMessage) ? addr.get.length
+                            : 0);
+                } catch (Exception e) {
+                }
             }
-        }
-        if (state_ != ActorState.stopped && addr.get.hasMessage) {
-            debug logger.tracef("mailbox length %s", addr.get.length).collectException;
         }
 
         final switch (state_) {
@@ -681,28 +698,33 @@ package:
             .destroy(front);
 
         void doSend(ref MsgOneShot msg) @trusted {
-            debug logger.trace("incoming signature: ", front.get.signature);
-            debug logger.trace("incoming2: ", incoming2);
             if (auto v = front.get.signature in incoming2) {
-                debug {
-                    logger.tracef("%X [%s] incoming %s", id, name, v.name).collectException;
+                version (mylib_actor_trace) {
+                    logger.tracef("actor:%X [%s] send: %s (%X)", id, name,
+                            v.name, front.get.signature).collectException;
                 }
                 v.behavior(context_, msg.data);
             } else {
+                version (mylib_actor_trace) {
+                    logger.tracef("actor:%X [%s] send: no message handler with signature: %s",
+                            id, name, front.get.signature).collectException;
+                }
                 defaultHandler_(this, msg.data);
             }
         }
 
         void doRequest(ref MsgRequest msg) @trusted {
-            debug logger.trace("request signature: ", front.get.signature);
-            debug logger.trace("reqBehavior2: ", reqBehavior2);
             if (auto v = front.get.signature in reqBehavior2) {
-                debug {
-                    logger.tracef("%X [%s] from %X request %s", id, name,
-                            msg.replyTo.toHash, v.name).collectException;
+                version (mylib_actor_trace) {
+                    logger.tracef("actor:%X [%s] from %X request: %s (%X)", id, name,
+                            msg.replyTo.toHash, v.name, front.get.signature).collectException;
                 }
                 v.behavior(context_, msg.data, msg.replyId, msg.replyTo);
             } else {
+                version (mylib_actor_trace) {
+                    logger.tracef("actor:%X [%s] from %X request: no message handler with signature: %s", id, name,
+                            msg.replyTo.toHash, front.get.signature).collectException;
+                }
                 defaultHandler_(this, msg.data);
             }
         }
@@ -731,8 +753,11 @@ package:
             scope (exit)
                 .destroy(front);
 
-            debug {
-                logger.tracef("%X [%s] system: %s", id, name, front.get).collectException;
+            version (mylib_actor_trace) {
+                () @trusted {
+                    logger.tracef("actor:%X [%s] system message: %s", id, name,
+                            front.get).collectException;
+                }();
             }
 
             front.get.match!((ref DownMsg a) {
@@ -777,18 +802,22 @@ package:
         messages_++;
 
         auto front = addr.get.pop!Reply;
-        const id = front.get.id;
+        const msgId = front.get.id;
         scope (exit)
             .destroy(front);
-        logger.trace("reply signature: ", id);
-        logger.trace("awaiting responses", awaitedResponses);
 
-        if (auto v = id in awaitedResponses) {
-            logger.tracef("using awaiting response %s %s", v, id);
+        if (auto v = msgId in awaitedResponses) {
+            version (mylib_actor_trace) {
+                () @trusted {
+                    logger.tracef("actor:%X [%s] reply id %s: %s", id, name,
+                            msgId, v.name).collectException;
+                }();
+            }
+
             scope (exit)
                 () {
-                awaitedResponses.remove(id);
-                removeReplyTimeout(id);
+                awaitedResponses.remove(msgId);
+                removeReplyTimeout(msgId);
                 try {
                     () @trusted { v.behavior.free; }();
                 } catch (Exception e) {
@@ -796,6 +825,12 @@ package:
             }();
             v.behavior(front.get.data);
         } else {
+            version (mylib_actor_trace) {
+                () @trusted {
+                    logger.tracef("actor:%X [%s] reply id %s: no handler", id,
+                            name, msgId).collectException;
+                }();
+            }
             // TODO: should probably be SystemError.unexpectedResponse?
             defaultHandler_(this, front.get.data);
         }
@@ -834,31 +869,42 @@ package:
         }
     }
 
-    void register(string name, ulong signature, Closure2!MsgHandler handler) @trusted
-    in (!name.empty) {
+    void register(string desc, ulong signature, Closure2!MsgHandler handler) @trusted
+    in (!desc.empty) {
         if (!isAccepting)
             return;
 
-        incoming2[signature] = Behavior2!MsgHandler(handler, name);
+        incoming2[signature] = Behavior2!MsgHandler(handler, desc);
+        version (mylib_actor_trace) {
+            logger.tracef("actor:%X [%s] reply handler (%X): %s", id, name, signature, desc);
+        }
     }
 
-    void register(string name, ulong signature, Closure2!RequestHandler handler) @trusted
-    in (!name.empty) {
+    void register(string desc, ulong signature, Closure2!RequestHandler handler) @trusted
+    in (!desc.empty) {
         if (!isAccepting)
             return;
 
-        reqBehavior2[signature] = Behavior2!RequestHandler(handler, name);
+        reqBehavior2[signature] = Behavior2!RequestHandler(handler, desc);
+        version (mylib_actor_trace) {
+            logger.tracef("actor:%X [%s] request handler (%X): %s", id, name, signature, desc);
+        }
     }
 
-    void register(ulong replyId, SysTime timeout, Closure!(ReplyHandler,
-            void*) reply, ErrorHandler onError) @safe //in (!name.empty)
+    void register(string desc, ulong replyId, SysTime timeout,
+            Closure!(ReplyHandler, void*) reply, ErrorHandler onError) @safe //in (!name.empty)
             {
         if (!isAccepting)
             return;
 
-        awaitedResponses[replyId] = AwaitReponse(reply, onError is null ? errorHandler_ : onError);
+        awaitedResponses[replyId] = AwaitReponse(reply, onError is null
+                ? errorHandler_ : onError, desc);
         replyTimeouts ~= ReplyHandlerTimeout(replyId, timeout);
         schwartzSort!(a => a.timeout, (a, b) => a < b)(replyTimeouts);
+        version (mylib_actor_trace) {
+            logger.tracef("actor:%X [%s] awaited reply id %s handler: %s ", id,
+                    name, replyId, desc);
+        }
     }
 }
 
@@ -960,11 +1006,9 @@ private void cleanupCtx(CtxT)(void* ctx)
                 // TODO: add a -version actor_ctx_diagnostic that prints when it is unable to deinit?
             }
         }
-        pragma(msg, "cleanupCtx destroy: ", CtxT);
         if (!GC.inFinalizer) {
             .destroy(*userCtx);
         }
-        debug logger.tracef("cleanupCtx!(%s) called", CtxT.stringof);
     }
 }
 
@@ -1020,8 +1064,6 @@ package auto makeAction2(T, CtxT = void)(T handler) @safe
     }
 
     alias HArgs = staticMap!(Unqual, Params);
-    pragma(msg, "makeAction2 context: ", CtxT);
-    pragma(msg, "makeAction2 params: ", Params);
 
     void fn(void* ctx, ref Variant msg) @trusted {
         static if (is(CtxT == void)) {
@@ -1046,8 +1088,6 @@ package Closure!(ReplyHandler, void*) makeReply2(T, CtxT = void)(T handler) @saf
     }
 
     alias HArgs = staticMap!(Unqual, Params);
-    pragma(msg, "makeReply2 context: ", CtxT);
-    pragma(msg, "makeReply2 params: ", HArgs);
 
     void fn(void* ctx, ref Variant msg) @trusted {
         static if (is(CtxT == void)) {
@@ -1064,6 +1104,11 @@ package Closure!(ReplyHandler, void*) makeReply2(T, CtxT = void)(T handler) @saf
 package struct Request2 {
     Closure2!RequestHandler request;
     ulong signature;
+    string name;
+
+    string toString() @safe const {
+        return name;
+    }
 }
 
 package struct Request {
@@ -1112,65 +1157,6 @@ package void checkMatchingCtx(CtxParam, CtxT)() {
     }
 }
 
-// package auto makeRequest(T, CtxT = void)(T handler) @safe {
-//     static assert(!is(ReturnType!T == void), "handler returns void, not allowed");
-//
-//     alias RType = ReturnType!T;
-//     enum isReqResult = is(RType : RequestResult!ReqT, ReqT);
-//     enum isPromise = is(RType : Promise!PromT, PromT);
-//
-//     static if (is(CtxT == void))
-//         alias Params = Parameters!T;
-//     else {
-//         alias CtxParam = Parameters!T[0];
-//         alias Params = Parameters!T[1 .. $];
-//         checkMatchingCtx!(CtxParam, CtxT);
-//         checkRefForContext!handler;
-//     }
-//
-//     alias HArgs = staticMap!(Unqual, Params);
-//
-//     void fn(void* rawCtx, ref Variant msg, ulong replyId, WeakAddress replyTo) @trusted {
-//         static if (is(CtxT == void)) {
-//             auto r = handler(msg.get!(Tuple!HArgs).expand);
-//         } else {
-//             auto ctx = cast(CtxParam*) cast(CtxT*) rawCtx;
-//             auto r = handler(*ctx, msg.get!(Tuple!HArgs).expand);
-//         }
-//
-//         static if (isReqResult) {
-//             r.value.match!((ErrorMsg a) { sendSystemMsg(replyTo, a); }, (Promise!ReqT a) {
-//                 assert(a.data.refCountedStore.isInitialized,
-//                     "the promise MUST be constructed before it is returned");
-//                 a.data.borrow!((ref a) => a.replyId = replyId);
-//                 a.data.borrow!((ref a) => a.replyTo = replyTo);
-//             }, (data) {
-//                 enum wrapInTuple = !is(typeof(data) : Tuple!U, U);
-//                 if (auto rc = replyTo.lock.get) {
-//                     static if (wrapInTuple)
-//                         rc.put(Reply(replyId, Variant(tuple(data))));
-//                     else
-//                         rc.put(Reply(replyId, Variant(data)));
-//                 }
-//             });
-//         } else static if (isPromise) {
-//             r.data.replyId = replyId;
-//             r.data.replyTo = replyTo;
-//         } else {
-//             // TODO: is this syntax for U one variable or variable. I want it to be variable.
-//             enum wrapInTuple = !is(RType : Tuple!U, U);
-//             if (auto rc = replyTo.lock.get) {
-//                 static if (wrapInTuple)
-//                     rc.put(Reply(replyId, Variant(tuple(r))));
-//                 else
-//                     rc.put(Reply(replyId, Variant(r)));
-//             }
-//         }
-//     }
-//
-//     return Request(typeof(Request.request)(&fn, null, &cleanupCtx!CtxT), makeSignature!HArgs);
-// }
-
 package auto makeRequest2(T, CtxT = void)(T handler) @safe {
     static assert(!is(ReturnType!T == void), "handler returns void, not allowed");
 
@@ -1188,9 +1174,6 @@ package auto makeRequest2(T, CtxT = void)(T handler) @safe {
     }
 
     alias HArgs = staticMap!(Unqual, Params);
-    pragma(msg, "makeRequest2 context: ", CtxT);
-    pragma(msg, "makeRequest2 params: ", HArgs);
-    logger.tracef("%s makeRequest2 signature: %s", HArgs.stringof, makeSignature!HArgs);
 
     void fn(void* rawCtx, ref Variant msg, ulong replyId, WeakAddress replyTo) @trusted {
         static if (is(CtxT == void)) {
@@ -1202,10 +1185,11 @@ package auto makeRequest2(T, CtxT = void)(T handler) @safe {
 
         static if (isReqResult) {
             r.value.match!((ErrorMsg a) { sendSystemMsg(replyTo, a); }, (Promise!ReqT a) {
-                debug logger.infof("promise is empty? %s %s ", a.data.empty, a.empty);
-                if (!a.data.empty)
-                    debug logger.infof("promise is? %s %s ",
-                        a.data.get.replyId, a.data.get.replyTo);
+                version (mylib_actor_trace) {
+                    logger.infof("promise is empty? %s %s ", a.data.empty, a.empty);
+                    if (!a.data.empty)
+                        logger.infof("promise is? %s %s ", a.data.get.replyId, a.data.get.replyTo);
+                }
                 assert(!a.data.empty, "the promise MUST be constructed before it is returned");
                 a.set(replyTo, replyId);
             }, (data) {
@@ -1231,7 +1215,7 @@ package auto makeRequest2(T, CtxT = void)(T handler) @safe {
         }
     }
 
-    return Request2(typeof(Request2.request)(&fn), makeSignature!HArgs);
+    return Request2(typeof(Request2.request)(&fn), makeSignature!HArgs, HArgs.stringof);
 }
 
 @("shall link two actors lifetime")
@@ -1398,7 +1382,6 @@ private struct BuildActorContext(CtxT = void) {
     auto set(BehaviorT)(string name, BehaviorT behavior)
             if ((isFunction!BehaviorT || isFunctionPointer!BehaviorT)
                 && !is(ReturnType!BehaviorT == void)) {
-        logger.info(name, " ", CtxT.stringof);
         auto act = makeRequest2!(BehaviorT, CtxT)(behavior);
         actor.register(name, act.signature, act.request);
         return this;
@@ -1407,7 +1390,6 @@ private struct BuildActorContext(CtxT = void) {
     auto set(BehaviorT)(string name, BehaviorT behavior)
             if ((isFunction!BehaviorT || isFunctionPointer!BehaviorT)
                 && is(ReturnType!BehaviorT == void)) {
-        logger.info(name, " ", CtxT.stringof);
         auto act = makeAction2!(BehaviorT, CtxT)(behavior);
         actor.register(name, act.signature, act.action);
         return this;
@@ -1416,7 +1398,6 @@ private struct BuildActorContext(CtxT = void) {
     auto set(BehaviorT, CtxT)(string name, BehaviorT behavior)
             if ((isFunction!BehaviorT || isFunctionPointer!BehaviorT)
                 && is(ReturnType!BehaviorT == void)) {
-        logger.info(name, " ", CtxT.stringof);
         auto act = makeAction2!(BehaviorT, CtxT)(behavior);
         actor.register(name, act.signature, act.action);
         return this;
@@ -1443,8 +1424,6 @@ Actor* impl(Behavior...)(Actor* self, Behavior behaviors) {
         auto bactor = build(self);
         enum StartIdx = 0;
     }
-
-    logger.info("hello ", StartIdx, " ", " ", Behavior.stringof);
 
     static foreach (const i; StartIdx .. Behavior.length) {
         {
@@ -1507,8 +1486,6 @@ unittest {
 
 shared static this() {
     version (unittest) {
-        import logger = std.logger;
-
         logger.globalLogLevel = logger.LogLevel.all;
         (cast() logger.sharedLog).logLevel = logger.LogLevel.all;
     }
@@ -1617,7 +1594,6 @@ unittest {
     assert(2 == rcReq.refCount);
     assert(1 == rcReply.refCount);
 
-    logger.info("smurf ", rcReply.refCount);
     actor.request(actor.address, infTimeout).send("apa", "foo")
         .capture(&calledReply, rcReply).then(&reply);
     assert(2 == rcReply.refCount);
@@ -1631,7 +1607,6 @@ unittest {
     assert(actor.addr.get.empty!Reply);
 
     assert(2 == rcReq.refCount);
-    logger.info("smurf ", rcReply.refCount);
     assert(1 == rcReply.refCount, "after the message is consumed the refcount should go back");
 
     assert(calledOk);

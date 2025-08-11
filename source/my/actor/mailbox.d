@@ -253,7 +253,7 @@ struct StrongAddress {
         addr = null;
     }
 
-    ulong id() @safe pure nothrow const @nogc {
+    ulong id() @safe pure nothrow const @nogc scope {
         return cast(ulong) addr;
     }
 

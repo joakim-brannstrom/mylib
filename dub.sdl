@@ -18,5 +18,5 @@ configuration "unittest" {
     dependency "silly" version="~>1.0.2"
     dflags "-preview=dip1008" "-preview=dip1000" "-verrors=context" platform="dmd"
     dflags "--verrors-context" platform="ldc"
-    //dflags "-checkaction=context"
+    versions "mylib_actor_trace"
 }

@@ -178,9 +178,7 @@ unittest {
 
     while (counter.get < 100 && sw.peek < 4.dur!"seconds") {
         Thread.sleep(1.dur!"msecs");
-        logger.info(counter.get);
     }
-    logger.info(counter.get);
 
     assert(counter.get >= 100);
     // 40 tokens mean that it will trigger at least two "slowdown" which is at least 200 ms.

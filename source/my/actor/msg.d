@@ -220,10 +220,11 @@ package void thenUnsafe(T, CtxT = void)(scope RequestSendThen r, T handler,
     // this order ensure that there is always a handler that can receive the message.
 
     () @safe {
-        logger.info("thenUnsafe ", CtxT.stringof);
         auto reply = makeReply2!(T, CtxT)(handler);
         reply.ctx = ctx;
-        r.rs.self.register(r.rs.replyId, timeout, reply, onError);
+        string desc;
+        debug desc = T.stringof;
+        r.rs.self.register(desc, r.rs.replyId, timeout, reply, onError);
     }();
 
     // then send it
