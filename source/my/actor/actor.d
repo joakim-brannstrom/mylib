@@ -9,7 +9,7 @@ import std.stdio : writeln, writefln;
 
 import core.sync.mutex : Mutex;
 import core.thread : Thread;
-import logger = std.experimental.logger;
+import logger = std.logger;
 import std.algorithm : schwartzSort, max, min, among;
 import std.array : empty;
 import std.datetime : SysTime, Clock, dur;

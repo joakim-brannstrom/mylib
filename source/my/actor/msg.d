@@ -5,6 +5,7 @@ Author: Joakim Brännström (joakim.brannstrom@gmx.com)
 */
 module my.actor.msg;
 
+import logger = std.logger;
 import std.meta : staticMap, AliasSeq;
 import std.traits : Unqual, Parameters, isFunction, isFunctionPointer;
 import std.typecons : Tuple, tuple;
