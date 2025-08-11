@@ -18,8 +18,7 @@ import std.functional : toDelegate;
 import std.meta : staticMap;
 import std.sumtype;
 import std.traits : Parameters, Unqual, ReturnType, isFunctionPointer, isFunction;
-import std.typecons : Tuple, tuple, safeRefCounted, SafeRefCounted,
-    RefCountedAutoInitialize, borrow;
+import std.typecons : Tuple, tuple;
 import std.variant : Variant;
 
 import my.actor.common : ExitReason, SystemError, makeSignature;
