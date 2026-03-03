@@ -634,7 +634,7 @@ package:
     }
 
     void sendToMonitors(scope DownMsg msg) @safe nothrow scope {
-        foreach (ref a; monitors.byValue) {
+        foreach (ref a; monitors) {
             try {
                 auto tmp = a.lock;
                 auto rc = tmp.get;
@@ -649,7 +649,7 @@ package:
     }
 
     void sendToLinks(scope ExitMsg msg) @safe nothrow scope {
-        foreach (ref a; links.byValue) {
+        foreach (ref a; links) {
             try {
                 auto tmp = a.lock;
                 auto rc = tmp.get;
@@ -670,7 +670,7 @@ package:
         size_t removeTo;
         foreach (const i; 0 .. replyTimeouts.length) {
             if (now > replyTimeouts[i].timeout) {
-                const id = replyTimeouts[i].id;
+                auto id = replyTimeouts[i].id;
                 if (auto v = id in awaitedResponses) {
                     messages_++;
                     v.onError(this, ErrorMsg(addr.weakRef, SystemError.requestTimeout));
@@ -807,7 +807,7 @@ package:
         messages_++;
 
         auto front = addr.get.pop!Reply;
-        const msgId = front.get.id;
+        auto msgId = front.get.id;
         scope (exit)
             .destroy(front);
 
