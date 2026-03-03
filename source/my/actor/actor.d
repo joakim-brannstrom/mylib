@@ -634,30 +634,36 @@ package:
     }
 
     void sendToMonitors(scope DownMsg msg) @safe nothrow scope {
-        foreach (ref a; monitors) {
-            try {
-                auto tmp = a.lock;
-                auto rc = tmp.get;
-                if (rc)
-                    rc.put(SystemMsg(msg));
-                a.release;
-            } catch (Exception e) {
+        try {
+            foreach (ref a; monitors) {
+                try {
+                    auto tmp = a.lock;
+                    auto rc = tmp.get;
+                    if (rc)
+                        rc.put(SystemMsg(msg));
+                    a.release;
+                } catch (Exception e) {
+                }
             }
+        } catch(Exception e) {
         }
 
         monitors = null;
     }
 
     void sendToLinks(scope ExitMsg msg) @safe nothrow scope {
-        foreach (ref a; links) {
-            try {
-                auto tmp = a.lock;
-                auto rc = tmp.get;
-                if (rc)
-                    rc.put(SystemMsg(msg));
-                a.release;
-            } catch (Exception e) {
+        try {
+            foreach (ref a; links) {
+                try {
+                    auto tmp = a.lock;
+                    auto rc = tmp.get;
+                    if (rc)
+                        rc.put(SystemMsg(msg));
+                    a.release;
+                } catch (Exception e) {
+                }
             }
+        } catch(Exception e) {
         }
 
         links = null;
