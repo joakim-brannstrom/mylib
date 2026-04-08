@@ -645,7 +645,7 @@ package:
                 } catch (Exception e) {
                 }
             }
-        } catch(Exception e) {
+        } catch (Exception e) {
         }
 
         monitors = null;
@@ -663,7 +663,7 @@ package:
                 } catch (Exception e) {
                 }
             }
-        } catch(Exception e) {
+        } catch (Exception e) {
         }
 
         links = null;

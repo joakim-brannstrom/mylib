@@ -135,7 +135,7 @@ struct System {
 }
 
 @("shall start an actor system, execute an actor and shutdown")
-@safe unittest {
+@system unittest {
     auto sys = makeSystem;
 
     int hasExecutedWith42;
