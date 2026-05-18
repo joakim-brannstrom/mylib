@@ -711,13 +711,13 @@ package:
         void doSend(ref MsgOneShot msg) @trusted {
             if (auto v = front.get.signature in incoming2) {
                 version (mylib_actor_trace) {
-                    logger.tracef("actor:%X [%s] send: %s (%X)", id, name,
-                            v.name, front.get.signature).collectException;
+                    logger.tracef("actor:%X [%s] process send: %s (%X)", id,
+                            name, v.name, front.get.signature).collectException;
                 }
                 v.behavior(context_, msg.data);
             } else {
                 version (mylib_actor_trace) {
-                    logger.tracef("actor:%X [%s] send: no message handler with signature: %s",
+                    logger.tracef("actor:%X [%s] process send: no message handler with signature: %s",
                             id, name, front.get.signature).collectException;
                 }
                 defaultHandler_(this, msg.data);
@@ -727,14 +727,14 @@ package:
         void doRequest(ref MsgRequest msg) @trusted {
             if (auto v = front.get.signature in reqBehavior2) {
                 version (mylib_actor_trace) {
-                    logger.tracef("actor:%X [%s] from %X request: %s (%X)", id, name,
+                    logger.tracef("actor:%X [%s] process request from %X: %s (%X)", id, name,
                             msg.replyTo.toHash, v.name, front.get.signature).collectException;
                 }
                 v.behavior(context_, msg.data, msg.replyId, msg.replyTo);
             } else {
                 version (mylib_actor_trace) {
-                    logger.tracef("actor:%X [%s] from %X request: no message handler with signature: %s", id, name,
-                            msg.replyTo.toHash, front.get.signature).collectException;
+                    logger.tracef("actor:%X [%s] process request from %X: no message handler with signature: %s", id,
+                            name, msg.replyTo.toHash, front.get.signature).collectException;
                 }
                 defaultHandler_(this, msg.data);
             }
@@ -820,7 +820,7 @@ package:
         if (auto v = msgId in awaitedResponses) {
             version (mylib_actor_trace) {
                 () @trusted {
-                    logger.tracef("actor:%X [%s] reply id %s: %s", id, name,
+                    logger.tracef("actor:%X [%s] reply_id:%s - %s", id, name,
                             msgId, v.name).collectException;
                 }();
             }
@@ -838,7 +838,7 @@ package:
         } else {
             version (mylib_actor_trace) {
                 () @trusted {
-                    logger.tracef("actor:%X [%s] reply id %s: no handler", id,
+                    logger.tracef("actor:%X [%s] reply_id:%s - no handler", id,
                             name, msgId).collectException;
                 }();
             }
@@ -913,7 +913,7 @@ package:
         replyTimeouts ~= ReplyHandlerTimeout(replyId, timeout);
         schwartzSort!(a => a.timeout, (a, b) => a < b)(replyTimeouts);
         version (mylib_actor_trace) {
-            logger.tracef("actor:%X [%s] awaited reply id %s handler: %s ", id,
+            logger.tracef("actor:%X [%s] awaited reply_id:%s handler: %s ", id,
                     name, replyId, desc);
         }
     }
