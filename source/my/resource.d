@@ -33,8 +33,8 @@ private AbsolutePath[Path] resolveCache;
 AbsolutePath[] dataSearch(string programName) {
     // dfmt off
     AbsolutePath[] rval = only(only(xdgDataHome ~ programName,
-                                    Path(buildPath(thisExePath.dirName, "data")),
-                                    Path(buildPath(thisExePath.dirName.dirName, "data"))
+                                    Path(buildPath(thisExePath.dirName, programName, "data")),
+                                    Path(buildPath(thisExePath.dirName.dirName, programName, "data"))
                                     ).map!(a => AbsolutePath(a)).array,
                                xdgDataDirs.map!(a => AbsolutePath(buildPath(a, programName, "data"))).array
                                ).joiner.array;
@@ -47,8 +47,8 @@ AbsolutePath[] dataSearch(string programName) {
 AbsolutePath[] configSearch(string programName) {
     // dfmt off
     AbsolutePath[] rval = only(only(xdgConfigHome ~ programName,
-                                    Path(buildPath(thisExePath.dirName, "config")),
-                                    Path(buildPath(thisExePath.dirName.dirName, "config"))
+                                    Path(buildPath(thisExePath.dirName, programName, "config")),
+                                    Path(buildPath(thisExePath.dirName.dirName, programName, "config"))
                                     ).map!(a => AbsolutePath(a)).array,
                                xdgConfigDirs.map!(a => AbsolutePath(buildPath(a, programName, "config"))).array
                                ).joiner.array;
