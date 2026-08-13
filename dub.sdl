@@ -15,7 +15,7 @@ configuration "nodip" {
 }
 
 configuration "unittest" {
-    dependency "silly" version="~>1.2.0-dev.2"
+    dependency "silly" version="~>1.0.2"
     dflags "-preview=dip1000" "-verrors=context" platform="dmd"
     dflags "--verrors-context" platform="ldc"
     versions "mylib_actor_trace"
