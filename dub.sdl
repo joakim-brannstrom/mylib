@@ -8,15 +8,15 @@ targetPath "build"
 targetType "library"
 
 configuration "default" {
-    dflags "-preview=dip1000"
 }
 
-configuration "nodip" {
+configuration "actor_trace" {
+    versions "mylib_actor_trace"
 }
 
 configuration "unittest" {
-    dependency "silly" version="~>1.0.2"
-    dflags "-preview=dip1000" "-verrors=context" platform="dmd"
+    dependency "nusilly" version="~>1.0.0"
+    dflags "-verrors=context" platform="dmd"
     dflags "--verrors-context" platform="ldc"
     versions "mylib_actor_trace"
 }
