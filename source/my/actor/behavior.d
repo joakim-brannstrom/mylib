@@ -27,10 +27,17 @@ template isHookName(string name) {
  * self-tick on the actor's own thread. Shutdown is deliberately NOT here:
  * that is the system shutdown message (`sendExit` / SystemExitMsg). */
 struct ActorRef {
+    import my.actor.system : System;
+
     private ActorShell* kernel_;
 
     this(ActorShell* kernel) @safe nothrow {
         kernel_ = kernel;
+    }
+
+    /// The system this actor belongs to (null for ActorRef.init)
+    System* homeSystem() @safe nothrow {
+        return kernel_ !is null ? &kernel.homeSystem() : null;
     }
 
     /// Weak address of this actor.
