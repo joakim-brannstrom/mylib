@@ -940,8 +940,8 @@ private final class DetachedExecutor {
             if (!actor.isAlive)
                 break;
             if (!atomicLoad(stopRequested))
-                Thread.sleep(min(detachedPollInterval,
-                        actor.nextTimeout(Clock.currTime, detachedPollInterval)));
+                Thread.sleep(max(Duration.zero, min(detachedPollInterval,
+                        actor.nextTimeout(Clock.currTime, detachedPollInterval))));
         }
     }
 

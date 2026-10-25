@@ -456,10 +456,12 @@ package:
         return false;
     }
 
-    /// How long until a delayed message or a timeout fires.
+    // How long until a delayed message or a timeout fires. A due deadline
+    // reports zero, never a negative duration.
     Duration nextTimeout(const SysTime now, const Duration default_) @safe {
-        return min(delayed.empty ? default_ : (delayed.front.triggerAt - now),
+        const remaining = min(delayed.empty ? default_ : (delayed.front.triggerAt - now),
                 replyTimeouts.empty ? default_ : (replyTimeouts[0].timeout - now));
+        return remaining < Duration.zero ? Duration.zero : remaining;
     }
 
     /** Arm a repeating self-tick: a one-shot message to this actor's own
